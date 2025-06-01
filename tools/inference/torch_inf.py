@@ -16,6 +16,35 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"
 from src.core import YAMLConfig
 
 
+# developed by Allan/AI
+def draw_one_image(images, labels, boxes, scores, thrh=0.4, save_dir=None, filenames=None):
+    os.makedirs(save_dir, exist_ok=True)
+
+    for i, im in enumerate(images):
+        draw = ImageDraw.Draw(im)
+
+        scr = scores[i]
+        lab = labels[i][scr > thrh]
+        box = boxes[i][scr > thrh]
+        scrs = scr[scr > thrh]
+
+        for j, b in enumerate(box):
+            draw.rectangle(list(b), outline="red")
+            draw.text(
+                (b[0], b[1]),
+                text=f"{lab[j].item()} {round(scrs[j].item(), 2)}",
+                fill="blue",
+            )
+
+        if filenames:
+            name, ext = os.path.splitext(filenames[i])
+            filename = f"{name}_detections{ext}"
+        else:
+            filename = f"output_{i}_detections.jpg"
+
+        im.save(os.path.join(save_dir, filename))
+
+
 def draw(images, labels, boxes, scores, thrh=0.4):
     for i, im in enumerate(images):
         draw = ImageDraw.Draw(im)
@@ -36,7 +65,7 @@ def draw(images, labels, boxes, scores, thrh=0.4):
         im.save("torch_results.jpg")
 
 
-def process_image(model, device, file_path):
+def process_image(model, device, file_path, save_dir, conf=0.4):
     im_pil = Image.open(file_path).convert("RGB")
     w, h = im_pil.size
     orig_size = torch.tensor([[w, h]]).to(device)
@@ -52,7 +81,8 @@ def process_image(model, device, file_path):
     output = model(im_data, orig_size)
     labels, boxes, scores = output
 
-    draw([im_pil], labels, boxes, scores)
+    # Passa o threshold conf para draw_one_image
+    draw_one_image([im_pil], labels, boxes, scores, thrh=conf, save_dir=save_dir, filenames=[os.path.basename(file_path)])
 
 
 def process_video(model, device, file_path):
@@ -141,16 +171,14 @@ def main(args):
             return outputs
 
     device = args.device
+    save_dir = args.save_dir
     model = Model().to(device)
 
-    # Check if the input file is an image or a video
     file_path = args.input
     if os.path.splitext(file_path)[-1].lower() in [".jpg", ".jpeg", ".png", ".bmp"]:
-        # Process as image
-        process_image(model, device, file_path)
+        process_image(model, device, file_path, save_dir, conf=args.conf)
         print("Image processing complete.")
     else:
-        # Process as video
         process_video(model, device, file_path)
 
 
@@ -161,6 +189,8 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--config", type=str, required=True)
     parser.add_argument("-r", "--resume", type=str, required=True)
     parser.add_argument("-i", "--input", type=str, required=True)
+    parser.add_argument("-s", "--save_dir", type=str, required=True)
     parser.add_argument("-d", "--device", type=str, default="cpu")
+    parser.add_argument("--conf", type=float, default=0.4, help="Confidence threshold for detections")
     args = parser.parse_args()
     main(args)
