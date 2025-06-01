@@ -81,7 +81,11 @@ def process_image(model, device, file_path, save_dir, conf=0.4):
     output = model(im_data, orig_size)
     labels, boxes, scores = output
 
-    # Passa o threshold conf para draw_one_image
+    # ✅ Contagem de objetos detectados com confiança acima do limiar
+    num_detected = (scores[0] > conf).sum().item()
+    print(f"Quantidade de objetos detectados: {num_detected}")
+
+    # Geração de imagem com anotações
     draw_one_image([im_pil], labels, boxes, scores, thrh=conf, save_dir=save_dir, filenames=[os.path.basename(file_path)])
 
 
